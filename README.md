@@ -294,3 +294,7 @@ my
 ---
 
 *Status: Design phase - actively being developed as a learning project*
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
