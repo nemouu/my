@@ -1,4 +1,4 @@
-# μ (My) - AI-Powered Shell
+# μ (My) Shell
 
 A minimal shell with integrated local LLM capabilities via Ollama. Unlike bolt-on AI tools, μ treats AI as a first-class shell feature with automatic context awareness and seamless workflow integration.
 
