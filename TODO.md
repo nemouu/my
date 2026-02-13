@@ -4,10 +4,101 @@
 
 Building a real Unix shell from scratch in Go with integrated local LLM capabilities. This is both a practical tool and a long-term learning project for systems programming.
 
-**Timeline:** 
+**Timeline:**
 - MVP (basic shell + AI): 4 weeks
 - Feature complete v1.0: 3 months
 - Advanced features: 6-12 months ongoing
+
+---
+
+## Design Reference
+
+### Philosophy
+
+Build a real shell from the ground up as a long-term systems programming learning project, while delivering immediate practical value through AI integration. Start simple, grow organically.
+
+### What Makes μ Different from Existing AI Shell Tools
+
+| Existing AI shell tools | μ approach |
+|---|---|
+| Shell plugins or CLI wrappers (not actual shells) | Actual shell you run as your primary environment |
+| Require hotkeys and explicit invocation | AI commands are built-in (like `cd` or `exit`) |
+| Context switching between shell and AI | Automatic context from current directory and session |
+| Usually cloud-dependent | Local-first by design (Ollama) |
+
+**Inspiration:** Like having Claude Code's capabilities built into your shell, but using local models and maintaining privacy. Technically modeled on standard Unix shell architecture (similar to dash/sh) with AI as a native feature rather than a plugin.
+
+### Command Execution Model
+
+```
+User input
+    ↓
+Built-in? (cd, exit, ask, commit, code)
+    ↓ YES → Handle in Go
+    ↓ NO  → External command (gcc, git, ls, etc.) → fork() + exec()
+```
+
+**Built-ins:** `cd`, `exit`, `pwd`, `ask`, `commit`, `code`, `history`, `session`
+
+### Session & Config Storage
+
+```
+~/.config/my/
+├── config.yaml
+├── sessions/
+│   ├── {sha256hash}.json   # per-directory session
+│   └── ...
+└── history
+```
+
+### Default Configuration Reference
+
+```yaml
+ollama:
+  host: "http://localhost:11434"
+
+models:
+  ask: "qwen2.5:7b"
+  code: "qwen2.5-coder:7b"
+  commit: "deepseek-coder:6.7b"
+
+context:
+  max_tokens: 4096
+  warning_threshold: 0.8
+  auto_load_files: true
+
+session:
+  auto_save: true
+  cleanup_days: 7
+
+shell:
+  prompt: "μ"
+  show_git_branch: true
+  history_size: 1000
+```
+
+### Technology Choices
+
+**Language:** Go — easy process management (exec package), single binary distribution, fast startup, compiled performance.
+
+**Dependencies:**
+- Ollama Go API client
+- gopkg.in/yaml.v3 (YAML parsing)
+- Cobra (CLI framework — TBD if needed)
+- github.com/chzyer/readline (TBD)
+
+### Non-Goals
+
+- Not trying to replace bash/zsh for power users (initially)
+- Not a full IDE or development environment
+- Not trying to compete with cloud AI quality
+- Not implementing bash/zsh compatibility (fresh start)
+
+### Use Cases
+
+**Good fit:** learning codebases, quick git commits, exploring new projects, solo dev with AI pair programming, systems programming practice.
+
+**Not ideal for:** complex shell scripts, production deployment automation, heavy piping workflows (will improve over time).
 
 ---
 
