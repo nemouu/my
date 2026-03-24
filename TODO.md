@@ -4,10 +4,7 @@
 
 Building a real Unix shell from scratch in Go with integrated local LLM capabilities. This is both a practical tool and a long-term learning project for systems programming.
 
-**Timeline:**
-- MVP (basic shell + AI): 4 weeks
-- Feature complete v1.0: 3 months
-- Advanced features: 6-12 months ongoing
+Lab can be found at csapp.cs.cmu.edu/3e/labs.html
 
 ---
 
