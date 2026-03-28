@@ -1,5 +1,10 @@
 package shell
 
+import (
+	"os"
+	"os/exec"
+)
+
 // This file will contain command execution logic for the shell.
 // It determines whether a command is built-in or external and
 // executes it appropriately using fork+exec for external commands.
@@ -12,6 +17,37 @@ package shell
 
 // Execute runs a parsed command with its arguments
 func Execute(args []string) error {
-	// TODO: Implement command execution logic
+	if len(args) == 0 {
+		return nil
+	}
+
+	if isBuiltin(args[0]) {
+		return executeBuiltin(args)
+	}
+	return executeExternal(args)
+}
+
+func isBuiltin(cmd string) bool {
+	switch cmd {
+	case "cd", "exit", "pwd":
+		return true
+	}
+	return false
+}
+
+func executeExternal(args []string) error {
+	// Create Command
+	cmd := exec.Command(args[0], args[1:]...)
+
+	// Wire up stdin/stdout/stderr so the child process can talk to the terminal
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	// Run command and return errors if they happen
+	return cmd.Run()
+}
+
+func executeBuiltin(args []string) error {
 	return nil
 }
