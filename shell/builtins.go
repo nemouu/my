@@ -1,6 +1,7 @@
 package shell
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"strconv"
@@ -20,6 +21,8 @@ import (
 // - commit: AI-powered git commit messages
 // - code: Interactive code mode
 
+var previousDir string
+
 // IsBuiltin checks if a command name is a built-in command
 func isBuiltin(cmd string) bool {
 	switch cmd {
@@ -33,14 +36,33 @@ func isBuiltin(cmd string) bool {
 func executeBuiltin(args []string) error {
 	switch args[0] {
 	case "cd":
+		// Save the current directory in global variable
+		current, err := os.Getwd()
+		if err != nil {
+			return err
+		}
+
+		// No second argument, go to home directory
 		if len(args) < 2 {
 			// go to home directory
 			home, err := os.UserHomeDir()
 			if err != nil {
 				return err
 			}
+			previousDir = current
 			return os.Chdir(home)
 		}
+
+		// check second argument
+		if args[1] == "-" {
+			if previousDir == "" {
+				return errors.New("cd: no previous directory")
+			}
+			target := previousDir
+			previousDir = current
+			return os.Chdir(target)
+		}
+		previousDir = current
 		return os.Chdir(args[1])
 	case "pwd":
 		dir, err := os.Getwd()
