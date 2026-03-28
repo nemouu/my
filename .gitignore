@@ -31,3 +31,6 @@ config.yaml
 # Session data
 sessions/
 *.session
+
+# Other files
+todo.png
