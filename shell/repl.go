@@ -1,9 +1,11 @@
 package shell
 
 import (
-	"bufio"
 	"fmt"
+	"io"
 	"os"
+
+	"github.com/chzyer/readline"
 )
 
 // This file will contain the main REPL (Read-Eval-Print Loop) implementation
@@ -18,18 +20,35 @@ import (
 // Run starts the main shell REPL loop
 func Run() error {
 	initSignalHandlers()
-	scanner := bufio.NewScanner(os.Stdin)
+
+	os.MkdirAll(os.Getenv("HOME")+"/.config/mu", 0755)
+	rl, err := readline.NewEx(&readline.Config{
+		Prompt:       prompt(),
+		HistoryFile:  os.Getenv("HOME") + "/.config/mu/history",
+		HistoryLimit: 500,
+	})
+	if err != nil {
+		return err
+	}
+	defer rl.Close()
+
 	for {
-		fmt.Print(prompt())
-		if !scanner.Scan() {
-			break
+		rl.SetPrompt(prompt()) // update prompt each iteration for cd
+
+		line, err := rl.Readline()
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			continue
 		}
-		line := scanner.Text()
+
 		cmd, err := parse(line)
 		if err != nil {
 			fmt.Println(err)
 			continue
 		}
+
 		if err := execute(cmd.Args); err != nil {
 			fmt.Println(err)
 			continue

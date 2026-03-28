@@ -81,6 +81,13 @@ func executeBuiltin(args []string) error {
 		} else {
 			os.Exit(0)
 		}
+	case "history":
+		data, err := os.ReadFile(os.Getenv("HOME") + "/.config/mu/history")
+		if err != nil {
+			return err
+		}
+		fmt.Print(string(data))
+		return nil
 	default:
 		return nil
 	}
