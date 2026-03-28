@@ -26,7 +26,7 @@ var previousDir string
 // IsBuiltin checks if a command name is a built-in command
 func isBuiltin(cmd string) bool {
 	switch cmd {
-	case "cd", "exit", "pwd":
+	case "cd", "exit", "pwd", "history":
 		return true
 	}
 	return false
