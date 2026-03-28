@@ -1,5 +1,11 @@
 package shell
 
+import (
+	"fmt"
+	"os"
+	"strconv"
+)
+
 // This file will contain implementations of built-in shell commands
 // that cannot be external programs (cd, exit, pwd, etc.) as well as
 // AI-powered commands (ask, commit, code).
@@ -15,13 +21,46 @@ package shell
 // - code: Interactive code mode
 
 // IsBuiltin checks if a command name is a built-in command
-func IsBuiltin(cmd string) bool {
-	// TODO: Check against list of built-in commands
+func isBuiltin(cmd string) bool {
+	switch cmd {
+	case "cd", "exit", "pwd":
+		return true
+	}
 	return false
 }
 
 // ExecuteBuiltin executes a built-in command
-func ExecuteBuiltin(args []string) error {
-	// TODO: Implement built-in command routing and execution
+func executeBuiltin(args []string) error {
+	switch args[0] {
+	case "cd":
+		if len(args) < 2 {
+			// go to home directory
+			home, err := os.UserHomeDir()
+			if err != nil {
+				return err
+			}
+			return os.Chdir(home)
+		}
+		return os.Chdir(args[1])
+	case "pwd":
+		dir, err := os.Getwd()
+		if err != nil {
+			return err
+		}
+		fmt.Println(dir)
+		return nil
+	case "exit":
+		if len(args) > 1 {
+			status, err := strconv.Atoi((args[1]))
+			if err != nil {
+				return err
+			}
+			os.Exit(status)
+		} else {
+			os.Exit(0)
+		}
+	default:
+		return nil
+	}
 	return nil
 }
