@@ -8,7 +8,7 @@ import (
 
 // InitSignalHandlers sets up signal handling for the shell.
 // Call this once from repl.go when the shell starts.
-func InitSignalHandlers() {
+func initSignalHandlers() {
 	sigs := make(chan os.Signal, 1)
 
 	// Register the signals we want to handle

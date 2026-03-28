@@ -16,7 +16,7 @@ import (
 // - Handle command not found errors
 
 // Execute runs a parsed command with its arguments
-func Execute(args []string) error {
+func execute(args []string) error {
 	if len(args) == 0 {
 		return nil
 	}

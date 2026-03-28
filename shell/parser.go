@@ -12,7 +12,7 @@ type Command struct {
 }
 
 // Parse splits a line of input into a Command.
-func Parse(line string) (*Command, error) {
+func parse(line string) (*Command, error) {
 	line = strings.TrimSpace(line)
 	if line == "" {
 		return nil, errors.New("empty input")
