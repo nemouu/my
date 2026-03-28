@@ -13,6 +13,9 @@ package main
 
 import (
 	"fmt"
+	"os"
+
+	"github.com/nemouu/my/shell"
 )
 
 func main() {
@@ -20,6 +23,8 @@ func main() {
 	// TODO: Parse command-line flags
 	// TODO: Initialize components
 	// TODO: Start REPL
-
-	fmt.Println("μ shell - Coming soon!")
+	if err := shell.Run(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
 }
