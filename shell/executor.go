@@ -1,8 +1,10 @@
 package shell
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
+	"strconv"
 )
 
 // This file will contain command execution logic for the shell.
@@ -24,6 +26,7 @@ func Execute(args []string) error {
 	if isBuiltin(args[0]) {
 		return executeBuiltin(args)
 	}
+
 	return executeExternal(args)
 }
 
@@ -49,5 +52,36 @@ func executeExternal(args []string) error {
 }
 
 func executeBuiltin(args []string) error {
+	switch args[0] {
+	case "cd":
+		if len(args) < 2 {
+			// go to home directory
+			home, err := os.UserHomeDir()
+			if err != nil {
+				return err
+			}
+			return os.Chdir(home)
+		}
+		return os.Chdir(args[1])
+	case "pwd":
+		dir, err := os.Getwd()
+		if err != nil {
+			return err
+		}
+		fmt.Println(dir)
+		return nil
+	case "exit":
+		if len(args) > 1 {
+			status, err := strconv.Atoi((args[1]))
+			if err != nil {
+				return err
+			}
+			os.Exit(status)
+		} else {
+			os.Exit(0)
+		}
+	default:
+		return nil
+	}
 	return nil
 }
