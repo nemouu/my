@@ -1,6 +1,8 @@
 package shell
 
 import (
+	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 )
@@ -25,7 +27,13 @@ func execute(args []string) error {
 		return executeBuiltin(args)
 	}
 
-	return executeExternal(args)
+	err := executeExternal(args)
+	if err != nil {
+		if errors.Is(err, exec.ErrNotFound) {
+			return fmt.Errorf("%s: command not found", args[0])
+		}
+	}
+	return err
 }
 
 func executeExternal(args []string) error {
