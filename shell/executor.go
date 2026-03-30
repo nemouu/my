@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strings"
+	"syscall"
 )
 
 // This file will contain command execution logic for the shell.
@@ -18,7 +20,7 @@ import (
 // - Handle command not found errors
 
 // Execute runs a parsed command with its arguments
-func execute(args []string) error {
+func execute(args []string, bg bool) error {
 	if len(args) == 0 {
 		return nil
 	}
@@ -27,7 +29,7 @@ func execute(args []string) error {
 		return executeBuiltin(args)
 	}
 
-	err := executeExternal(args)
+	err := executeExternal(args, bg)
 	if err != nil {
 		if errors.Is(err, exec.ErrNotFound) {
 			return fmt.Errorf("%s: command not found", args[0])
@@ -36,7 +38,7 @@ func execute(args []string) error {
 	return err
 }
 
-func executeExternal(args []string) error {
+func executeExternal(args []string, bg bool) error {
 	// Create Command
 	cmd := exec.Command(args[0], args[1:]...)
 
@@ -45,6 +47,39 @@ func executeExternal(args []string) error {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
-	// Run command and return errors if they happen
-	return cmd.Run()
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+
+	err := cmd.Start()
+	if err != nil {
+		return errors.New("exec: starting failed")
+	}
+
+	state := FG
+	if bg {
+		state = BG
+	}
+	err = addJob(cmd.Process.Pid, state, strings.Join(args, " "))
+	if err != nil {
+		return errors.New("exec: adding job failed")
+	}
+
+	if !bg {
+		err = cmd.Wait()
+		if err != nil {
+			return errors.New("exec: waiting failed")
+		}
+		if err = deleteJob(cmd.Process.Pid); err != nil {
+			return err
+		}
+	}
+
+	if bg {
+		job, err := getJobByPid(cmd.Process.Pid)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("[%d] %d\n", job.jid, job.pid)
+	}
+
+	return nil
 }

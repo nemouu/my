@@ -49,7 +49,7 @@ func Run() error {
 			continue
 		}
 
-		if err := execute(cmd.Args); err != nil {
+		if err := execute(cmd.Args, cmd.Bg); err != nil {
 			fmt.Println(err)
 			continue
 		}
