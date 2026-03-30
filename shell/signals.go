@@ -10,7 +10,7 @@ import (
 // InitSignalHandlers sets up signal handling for the shell.
 // Call this once from repl.go when the shell starts.
 func initSignalHandlers() {
-	sigs := make(chan os.Signal, 1)
+	sigs := make(chan os.Signal, 10)
 
 	// Register the signals we want to handle
 	// Add more signals here as the shell grows

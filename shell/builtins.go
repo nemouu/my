@@ -5,18 +5,14 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"syscall"
 )
 
 // This file will contain implementations of built-in shell commands
 // that cannot be external programs (cd, exit, pwd, etc.) as well as
 // AI-powered commands (ask, commit, code).
 //
-// TODO: Implement built-ins as described in TODO.md Milestone 1 "Built-in Commands"
-// - cd: Change directory with os.Chdir()
-// - exit: Clean exit with os.Exit(0)
-// - pwd: Print working directory with os.Getwd()
-//
-// TODO: Later add AI commands from Milestones 3-5
+// TODO: Later add AI commands
 // - ask: Query local LLM
 // - commit: AI-powered git commit messages
 // - code: Interactive code mode
@@ -26,7 +22,7 @@ var previousDir string
 // IsBuiltin checks if a command name is a built-in command
 func isBuiltin(cmd string) bool {
 	switch cmd {
-	case "cd", "exit", "pwd", "history":
+	case "cd", "exit", "pwd", "history", "jobs", "fg", "bg":
 		return true
 	}
 	return false
@@ -87,6 +83,76 @@ func executeBuiltin(args []string) error {
 			return err
 		}
 		fmt.Print(string(data))
+		return nil
+	case "jobs":
+		listJobs()
+		return nil
+	case "fg":
+		// Check if input has correct format
+		if len(args) < 2 || args[1][0] != '%' {
+			return errors.New("fg: usage: fg %<jobid>")
+		}
+
+		// Parse the job id from args
+		jid, err := strconv.Atoi(args[1][1:])
+		if err != nil {
+			return err
+		}
+
+		// Find the job
+		job, err := getJobByJid(jid)
+		if err != nil {
+			return err
+		}
+
+		// Send SIGCONT
+		err = syscall.Kill(-job.pid, syscall.SIGCONT)
+		if err != nil {
+			return err
+		}
+
+		// Update state of job
+		job.state = FG
+
+		// Wait for it since its now foreground, delete it when done
+		var status syscall.WaitStatus
+		pid, err := syscall.Wait4(job.pid, &status, 0, nil)
+		if err != nil {
+			return err
+		}
+		deleteJob(pid)
+
+		return nil
+	case "bg":
+		// Check if input has correct format
+		if len(args) < 2 || args[1][0] != '%' {
+			return errors.New("bg: usage: bg %<jobid>")
+		}
+
+		// Parse the job id from args
+		jid, err := strconv.Atoi(args[1][1:])
+		if err != nil {
+			return err
+		}
+
+		// Find the job
+		job, err := getJobByJid(jid)
+		if err != nil {
+			return err
+		}
+
+		// Send SIGCONT
+		err = syscall.Kill(-job.pid, syscall.SIGCONT)
+		if err != nil {
+			return err
+		}
+
+		// Update state of job
+		job.state = BG
+
+		// Print cmdline for info to user
+		fmt.Printf("[%d] %s", jid, job.cmdline)
+
 		return nil
 	default:
 		return nil
