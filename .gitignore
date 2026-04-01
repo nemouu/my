@@ -4,6 +4,7 @@ my
 *.dll
 *.so
 *.dylib
+test/bin
 
 # Go
 *.test

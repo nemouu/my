@@ -51,7 +51,7 @@ func executeExternal(args []string, bg bool) error {
 
 	err := cmd.Start()
 	if err != nil {
-		return errors.New("exec: starting failed")
+		return err
 	}
 
 	state := FG
@@ -64,12 +64,18 @@ func executeExternal(args []string, bg bool) error {
 	}
 
 	if !bg {
-		err = cmd.Wait()
+		var status syscall.WaitStatus
+		pid, err := syscall.Wait4(cmd.Process.Pid, &status, syscall.WUNTRACED, nil)
 		if err != nil {
 			return errors.New("exec: waiting failed")
 		}
-		if err = deleteJob(cmd.Process.Pid); err != nil {
-			return err
+		if status.Stopped() {
+			job, err := getJobByPid(pid)
+			if err == nil {
+				job.state = ST
+			}
+		} else {
+			deleteJob(pid)
 		}
 	}
 

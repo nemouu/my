@@ -151,7 +151,7 @@ func executeBuiltin(args []string) error {
 		job.state = BG
 
 		// Print cmdline for info to user
-		fmt.Printf("[%d] %s", jid, job.cmdline)
+		fmt.Printf("[%d] %s\n", jid, job.cmdline)
 
 		return nil
 	default:

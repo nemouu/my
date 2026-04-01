@@ -18,12 +18,18 @@ import (
 // - Main loop that continuously reads and executes commands
 
 // Run starts the main shell REPL loop
-func Run() error {
+func Run(emitPrompt bool) error {
 	initSignalHandlers()
 
 	os.MkdirAll(os.Getenv("HOME")+"/.config/mu", 0755)
+
+	p := prompt()
+	if !emitPrompt {
+		p = ""
+	}
+
 	rl, err := readline.NewEx(&readline.Config{
-		Prompt:       prompt(),
+		Prompt:       p,
 		HistoryFile:  os.Getenv("HOME") + "/.config/mu/history",
 		HistoryLimit: 500,
 	})
@@ -33,7 +39,9 @@ func Run() error {
 	defer rl.Close()
 
 	for {
-		rl.SetPrompt(prompt()) // update prompt each iteration for cd
+		if emitPrompt {
+			rl.SetPrompt(prompt())
+		}
 
 		line, err := rl.Readline()
 		if err != nil {

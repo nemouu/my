@@ -15,15 +15,16 @@ import (
 	"fmt"
 	"os"
 
+	"flag"
+
 	"github.com/nemouu/my/shell"
 )
 
 func main() {
-	// TODO: Load config
-	// TODO: Parse command-line flags
-	// TODO: Initialize components
-	// TODO: Start REPL
-	if err := shell.Run(); err != nil {
+	emitPrompt := flag.Bool("p", true, "emit prompt")
+	flag.Parse()
+
+	if err := shell.Run(*emitPrompt); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
