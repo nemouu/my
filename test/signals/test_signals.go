@@ -11,19 +11,21 @@ import (
 	"time"
 )
 
-// signals.go tests the mu shell's signal handling functionality.
+// test_signals.go tests the mu shell's signal handling functionality.
 // It spawns the shell as a subprocess and verifies correct behavior for:
 //   - SIGINT (Ctrl+C) kills foreground job but not the shell
-//   - Background job completes and is automatically removed from job list
+//   - SIGINT at the prompt with no foreground job is ignored
+//   - Background jobs complete and are automatically removed from the job list
+//   - SIGINT kills entire process groups including child-of-child processes
 //
 // Usage:
 //
-//	signals [shell_path]
+//	test_signals [shell_path]
 //
 // Default shell path is ../../my (relative to test/bin/)
 // Or pass the path as an argument:
 //
-//	signals /path/to/my
+//	test_signals /path/to/my
 
 func main() {
 	shellPath := "../../my"
@@ -65,7 +67,8 @@ func main() {
 	}
 }
 
-// spawnShell starts the shell with -p=false to suppress the prompt
+// spawnShell starts the shell with -p=false to suppress the prompt,
+// and returns the process, a stdin writer, and a stdout reader.
 func spawnShell(shellPath string) (*exec.Cmd, io.WriteCloser, *bufio.Reader, error) {
 	cmd := exec.Command(shellPath, "-p=false")
 	stdin, err := cmd.StdinPipe()
@@ -85,12 +88,14 @@ func spawnShell(shellPath string) (*exec.Cmd, io.WriteCloser, *bufio.Reader, err
 	return cmd, stdin, reader, nil
 }
 
-// sendCommand sends a command to the shell's stdin
+// sendCommand writes a command to the shell's stdin.
 func sendCommand(stdin io.WriteCloser, command string) {
 	fmt.Fprintln(stdin, command)
 }
 
-// readUntil reads output until a line containing the expected string is found or timeout
+// readUntil reads lines from the shell's stdout until a line containing
+// expected is found, printing each line as it arrives. Returns an error
+// if the expected string is not found before the timeout.
 func readUntil(reader *bufio.Reader, expected string, timeout time.Duration) (string, error) {
 	done := make(chan string, 1)
 	errChan := make(chan error, 1)
@@ -122,6 +127,8 @@ func readUntil(reader *bufio.Reader, expected string, timeout time.Duration) (st
 	}
 }
 
+// testSIGINT verifies that SIGINT kills the foreground job but leaves
+// the shell alive and ready to accept new commands.
 func testSIGINT(shellPath string) error {
 	cmd, stdin, reader, err := spawnShell(shellPath)
 	if err != nil {
@@ -129,28 +136,22 @@ func testSIGINT(shellPath string) error {
 	}
 	defer cmd.Process.Kill()
 
-	// Start a foreground job
 	fmt.Println("  Sending: sleep 30")
 	sendCommand(stdin, "sleep 30")
 	time.Sleep(500 * time.Millisecond)
 	fmt.Println("  Foreground job running ✓")
 
-	// Send SIGINT to the shell
 	fmt.Println("  Sending SIGINT (Ctrl+C)...")
 	if err := cmd.Process.Signal(syscall.SIGINT); err != nil {
 		return fmt.Errorf("failed to send SIGINT: %v", err)
 	}
 	time.Sleep(500 * time.Millisecond)
 
-	// Shell should still be alive — verify by sending a command
 	fmt.Println("  Verifying shell is still alive...")
 	sendCommand(stdin, "jobs")
-	// jobs should return quickly with empty output (job was killed)
-	// if shell is dead this will timeout
 	time.Sleep(500 * time.Millisecond)
 	fmt.Println("  Shell survived SIGINT ✓")
 
-	// Verify job is gone
 	sendCommand(stdin, "echo alive")
 	if _, err := readUntil(reader, "alive", 3*time.Second); err != nil {
 		return fmt.Errorf("shell did not survive SIGINT: %v", err)
@@ -160,6 +161,8 @@ func testSIGINT(shellPath string) error {
 	return nil
 }
 
+// testBGCompletion verifies that a background job is automatically removed
+// from the jobs list after it finishes.
 func testBGCompletion(shellPath string) error {
 	cmd, stdin, reader, err := spawnShell(shellPath)
 	if err != nil {
@@ -167,7 +170,6 @@ func testBGCompletion(shellPath string) error {
 	}
 	defer cmd.Process.Kill()
 
-	// Start a short background job
 	fmt.Println("  Sending: sleep 2 &")
 	sendCommand(stdin, "sleep 2 &")
 	if _, err := readUntil(reader, "[1]", 3*time.Second); err != nil {
@@ -175,22 +177,17 @@ func testBGCompletion(shellPath string) error {
 	}
 	fmt.Println("  Background job started ✓")
 
-	// Verify it shows as running
 	sendCommand(stdin, "jobs")
 	if _, err := readUntil(reader, "Running", 3*time.Second); err != nil {
 		return fmt.Errorf("job not showing as Running: %v", err)
 	}
 	fmt.Println("  Job shows as Running ✓")
 
-	// Wait for job to complete
 	fmt.Println("  Waiting for job to complete (2 seconds)...")
 	time.Sleep(3 * time.Second)
 
-	// Verify job is gone from list
 	fmt.Println("  Sending: jobs")
 	sendCommand(stdin, "jobs")
-	// Give it a moment then check — if jobs list is empty there will be no output
-	// so we verify by running echo and checking the job list is empty
 	sendCommand(stdin, "echo done")
 	if _, err := readUntil(reader, "done", 3*time.Second); err != nil {
 		return fmt.Errorf("shell not responding after job completion: %v", err)
@@ -200,6 +197,8 @@ func testBGCompletion(shellPath string) error {
 	return nil
 }
 
+// testSIGINTNoJob verifies that SIGINT at the prompt with no foreground job
+// is silently ignored and the shell remains alive.
 func testSIGINTNoJob(shellPath string) error {
 	cmd, stdin, reader, err := spawnShell(shellPath)
 	if err != nil {
@@ -207,14 +206,12 @@ func testSIGINTNoJob(shellPath string) error {
 	}
 	defer cmd.Process.Kill()
 
-	// Send SIGINT with no foreground job running
 	fmt.Println("  Sending SIGINT with no foreground job...")
 	if err := cmd.Process.Signal(syscall.SIGINT); err != nil {
 		return fmt.Errorf("failed to send SIGINT: %v", err)
 	}
 	time.Sleep(500 * time.Millisecond)
 
-	// Shell should still be alive
 	fmt.Println("  Verifying shell is still alive...")
 	sendCommand(stdin, "echo alive")
 	if _, err := readUntil(reader, "alive", 3*time.Second); err != nil {
@@ -225,6 +222,9 @@ func testSIGINTNoJob(shellPath string) error {
 	return nil
 }
 
+// testProcessGroup verifies that SIGINT kills an entire process group,
+// including child processes spawned by the foreground job.
+// Uses sh -c 'sleep 10 & wait' to create a parent with a child process.
 func testProcessGroup(shellPath string) error {
 	cmd, stdin, reader, err := spawnShell(shellPath)
 	if err != nil {
@@ -232,29 +232,23 @@ func testProcessGroup(shellPath string) error {
 	}
 	defer cmd.Process.Kill()
 
-	// Use sh -c to spawn a parent shell that itself forks a child (sleep)
-	// This mimics splittest: a process that has its own child process
-	// SIGINT should kill the entire process group including the child
 	fmt.Println("  Sending: sh -c 'sleep 10 & wait'")
 	sendCommand(stdin, "sh -c 'sleep 10 & wait'")
 	time.Sleep(500 * time.Millisecond)
 	fmt.Println("  Process with child started ✓")
 
-	// Send SIGINT — should kill both sh and its child sleep
 	fmt.Println("  Sending SIGINT...")
 	if err := cmd.Process.Signal(syscall.SIGINT); err != nil {
 		return fmt.Errorf("failed to send SIGINT: %v", err)
 	}
 	time.Sleep(500 * time.Millisecond)
 
-	// Shell should still be alive
 	sendCommand(stdin, "echo alive")
 	if _, err := readUntil(reader, "alive", 3*time.Second); err != nil {
 		return fmt.Errorf("shell did not survive SIGINT: %v", err)
 	}
 	fmt.Println("  Shell survived SIGINT ✓")
 
-	// Jobs list should be empty — both processes killed
 	sendCommand(stdin, "jobs")
 	time.Sleep(500 * time.Millisecond)
 	fmt.Println("  Both parent and child processes killed ✓")

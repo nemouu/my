@@ -11,21 +11,23 @@ import (
 	"time"
 )
 
-// jobs.go tests the mu shell's job control functionality.
+// jobs_test.go tests the mu shell's job control functionality.
 // It spawns the shell as a subprocess and verifies correct behavior for:
 //   - Background jobs (&)
-//   - Stopping foreground jobs (SIGTSTP)
+//   - Stopping foreground jobs (SIGTSTP / Ctrl+Z)
 //   - Resuming stopped jobs in foreground (fg)
 //   - Resuming stopped jobs in background (bg)
+//   - Multiple simultaneous background jobs
+//   - Invalid job ids
 //
 // Usage:
 //
-//	jobs [shell_path]
+//	test_jobs [shell_path]
 //
 // Default shell path is ../../my (relative to test/bin/)
 // Or pass the path as an argument:
 //
-//	jobs /path/to/my
+//	test_jobs /path/to/my
 
 func main() {
 	shellPath := "../../my"
@@ -69,7 +71,8 @@ func main() {
 	}
 }
 
-// spawnShell starts the shell with -p=false to suppress the prompt
+// spawnShell starts the shell with -p=false to suppress the prompt,
+// and returns the process, a stdin writer, and a stdout reader.
 func spawnShell(shellPath string) (*exec.Cmd, io.WriteCloser, *bufio.Reader, error) {
 	cmd := exec.Command(shellPath, "-p=false")
 	stdin, err := cmd.StdinPipe()
@@ -89,12 +92,14 @@ func spawnShell(shellPath string) (*exec.Cmd, io.WriteCloser, *bufio.Reader, err
 	return cmd, stdin, reader, nil
 }
 
-// sendCommand sends a command to the shell's stdin
+// sendCommand writes a command to the shell's stdin.
 func sendCommand(stdin io.WriteCloser, command string) {
 	fmt.Fprintln(stdin, command)
 }
 
-// readUntil reads output until a line containing the expected string is found or timeout
+// readUntil reads lines from the shell's stdout until a line containing
+// expected is found, printing each line as it arrives. Returns an error
+// if the expected string is not found before the timeout.
 func readUntil(reader *bufio.Reader, expected string, timeout time.Duration) (string, error) {
 	done := make(chan string, 1)
 	errChan := make(chan error, 1)
@@ -126,6 +131,8 @@ func readUntil(reader *bufio.Reader, expected string, timeout time.Duration) (st
 	}
 }
 
+// testBackgroundJob verifies that a job started with & runs in the background
+// and appears as Running in the jobs list.
 func testBackgroundJob(shellPath string) error {
 	cmd, stdin, reader, err := spawnShell(shellPath)
 	if err != nil {
@@ -150,6 +157,8 @@ func testBackgroundJob(shellPath string) error {
 	return nil
 }
 
+// testSIGTSTP verifies that sending SIGTSTP to the shell stops the foreground
+// job and marks it as Stopped in the jobs list.
 func testSIGTSTP(shellPath string) error {
 	cmd, stdin, reader, err := spawnShell(shellPath)
 	if err != nil {
@@ -178,6 +187,8 @@ func testSIGTSTP(shellPath string) error {
 	return nil
 }
 
+// testFGResume verifies that a stopped job can be resumed in the foreground
+// with fg, and is removed from the jobs list after being killed.
 func testFGResume(shellPath string) error {
 	cmd, stdin, reader, err := spawnShell(shellPath)
 	if err != nil {
@@ -216,6 +227,8 @@ func testFGResume(shellPath string) error {
 	return nil
 }
 
+// testBGResume verifies that a stopped job can be resumed in the background
+// with bg and appears as Running in the jobs list.
 func testBGResume(shellPath string) error {
 	cmd, stdin, reader, err := spawnShell(shellPath)
 	if err != nil {
@@ -250,6 +263,8 @@ func testBGResume(shellPath string) error {
 	return nil
 }
 
+// testMultipleBackgroundJobs verifies that multiple background jobs can run
+// simultaneously and all appear in the jobs list.
 func testMultipleBackgroundJobs(shellPath string) error {
 	cmd, stdin, reader, err := spawnShell(shellPath)
 	if err != nil {
@@ -257,7 +272,6 @@ func testMultipleBackgroundJobs(shellPath string) error {
 	}
 	defer cmd.Process.Kill()
 
-	// Start three background jobs
 	fmt.Println("  Sending: sleep 30 &")
 	sendCommand(stdin, "sleep 30 &")
 	if _, err := readUntil(reader, "[1]", 3*time.Second); err != nil {
@@ -279,10 +293,8 @@ func testMultipleBackgroundJobs(shellPath string) error {
 	}
 	fmt.Println("  Job 3 started ✓")
 
-	// Verify all three show in jobs list
 	fmt.Println("  Sending: jobs")
 	sendCommand(stdin, "jobs")
-	// Read until we see all three jobs
 	if _, err := readUntil(reader, "[3]", 3*time.Second); err != nil {
 		return fmt.Errorf("not all jobs showing: %v", err)
 	}
@@ -291,6 +303,8 @@ func testMultipleBackgroundJobs(shellPath string) error {
 	return nil
 }
 
+// testInvalidJobID verifies that fg and bg with a non-existent job id
+// return an error message without crashing the shell.
 func testInvalidJobID(shellPath string) error {
 	cmd, stdin, reader, err := spawnShell(shellPath)
 	if err != nil {
@@ -298,7 +312,6 @@ func testInvalidJobID(shellPath string) error {
 	}
 	defer cmd.Process.Kill()
 
-	// Try fg with invalid job id
 	fmt.Println("  Sending: fg %99")
 	sendCommand(stdin, "fg %99")
 	if _, err := readUntil(reader, "not found", 3*time.Second); err != nil {
@@ -306,7 +319,6 @@ func testInvalidJobID(shellPath string) error {
 	}
 	fmt.Println("  Got expected error for invalid fg job id ✓")
 
-	// Try bg with invalid job id
 	fmt.Println("  Sending: bg %99")
 	sendCommand(stdin, "bg %99")
 	if _, err := readUntil(reader, "not found", 3*time.Second); err != nil {
@@ -314,7 +326,6 @@ func testInvalidJobID(shellPath string) error {
 	}
 	fmt.Println("  Got expected error for invalid bg job id ✓")
 
-	// Verify shell is still alive
 	sendCommand(stdin, "echo alive")
 	if _, err := readUntil(reader, "alive", 3*time.Second); err != nil {
 		return fmt.Errorf("shell not responding after invalid job id: %v", err)
