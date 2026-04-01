@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 
 	"github.com/chzyer/readline"
 )
@@ -70,6 +71,13 @@ func prompt() string {
 	dir, err := os.Getwd()
 	if err != nil {
 		return "μ> "
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Sprintf("μ %s> ", dir)
+	}
+	if strings.HasPrefix(dir, home) {
+		dir = "~" + dir[len(home):]
 	}
 	return fmt.Sprintf("μ %s> ", dir)
 }

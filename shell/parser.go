@@ -2,6 +2,7 @@ package shell
 
 import (
 	"errors"
+	"os"
 	"strings"
 )
 
@@ -57,9 +58,30 @@ func parse(line string) (*Command, error) {
 	}
 	args = append(args, currentArg.String())
 
+	// expand tilde in each argument
+	for i, arg := range args {
+		args[i] = expandTilde(arg)
+	}
+
 	if len(args) == 0 {
 		return nil, errors.New("no command")
 	}
 
 	return &Command{Args: args, Bg: bg}, nil
+}
+
+// Helper function
+func expandTilde(line string) string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return line
+	}
+	// replace ~ at start of line
+	if strings.HasPrefix(line, "~/") {
+		return home + line[1:]
+	}
+	if line == "~" {
+		return home
+	}
+	return line
 }
