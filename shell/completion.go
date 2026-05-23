@@ -46,17 +46,18 @@ func (r *CompletionRegistry) Get(command string) (Completer, bool) {
 // ShellCompleter implements readline.AutoCompleter.
 // It is the single entry point readline calls on every Tab press.
 type ShellCompleter struct {
-	registry *CompletionRegistry
-	builtins []string
+	registry     *CompletionRegistry
+	builtins     []string
+	pathBinaries []string
 }
 
 func NewShellCompleter(registry *CompletionRegistry) *ShellCompleter {
-	return &ShellCompleter{
+	sc := &ShellCompleter{
 		registry: registry,
-		builtins: []string{
-			"cd", "pwd", "exit", "history", "jobs", "fg", "bg",
-		},
+		builtins: []string{"cd", "pwd", "exit", "history", "jobs", "fg", "bg"},
 	}
+	sc.pathBinaries = sc.scanPath()
+	return sc
 }
 
 // Do is called by readline on every Tab press.
@@ -105,20 +106,25 @@ func (sc *ShellCompleter) Do(line []rune, pos int) ([][]rune, int) {
 // completeCommands returns builtins and $PATH binaries matching prefix.
 func (sc *ShellCompleter) completeCommands(prefix string) []string {
 	var candidates []string
-
-	// Builtins first
 	for _, b := range sc.builtins {
 		if strings.HasPrefix(b, prefix) {
 			candidates = append(candidates, b)
 		}
 	}
+	for _, name := range sc.pathBinaries {
+		if strings.HasPrefix(name, prefix) {
+			candidates = append(candidates, name)
+		}
+	}
+	return candidates
+}
 
-	// $PATH binaries
-	// TODO: consider caching this on startup and refreshing periodically
+func (sc *ShellCompleter) scanPath() []string {
 	seen := make(map[string]bool)
 	for _, b := range sc.builtins {
 		seen[b] = true
 	}
+	var binaries []string
 	for _, dir := range filepath.SplitList(os.Getenv("PATH")) {
 		entries, err := os.ReadDir(dir)
 		if err != nil {
@@ -126,22 +132,25 @@ func (sc *ShellCompleter) completeCommands(prefix string) []string {
 		}
 		for _, e := range entries {
 			name := e.Name()
-			if seen[name] || !strings.HasPrefix(name, prefix) {
+			if seen[name] {
 				continue
 			}
 			if isExecutable(filepath.Join(dir, name)) {
-				candidates = append(candidates, name)
+				binaries = append(binaries, name)
 				seen[name] = true
 			}
 		}
 	}
-
-	return candidates
+	return binaries
 }
 
 // completeFiles returns file/directory names matching prefix.
 func completeFiles(prefix string) []string {
-	// TODO: handle tilde expansion in prefix
+	home, _ := os.UserHomeDir()
+	if strings.HasPrefix(prefix, "~/") {
+		prefix = home + prefix[1:]
+	}
+
 	dir, filePrefix := filepath.Split(prefix)
 	if dir == "" {
 		dir = "."
@@ -164,6 +173,9 @@ func completeFiles(prefix string) []string {
 		}
 		if e.IsDir() {
 			candidate += "/"
+		}
+		if home != "" && strings.HasPrefix(candidate, home) {
+			candidate = "~" + candidate[len(home):]
 		}
 		candidates = append(candidates, candidate)
 	}
