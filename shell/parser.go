@@ -3,6 +3,7 @@ package shell
 import (
 	"errors"
 	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -63,6 +64,9 @@ func parse(line string) (*Command, error) {
 		args[i] = expandTilde(arg)
 	}
 
+	// expand globs in each argument
+	args = expandGlobs(args)
+
 	if len(args) == 0 {
 		return nil, errors.New("no command")
 	}
@@ -70,7 +74,7 @@ func parse(line string) (*Command, error) {
 	return &Command{Args: args, Bg: bg}, nil
 }
 
-// Helper function
+// Helper function for tilde character
 func expandTilde(line string) string {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -84,4 +88,27 @@ func expandTilde(line string) string {
 		return home
 	}
 	return line
+}
+
+// Helper function for globs characters
+func expandGlobs(args []string) []string {
+	var expanded []string
+	for _, arg := range args {
+		if strings.Contains(arg, "*") || strings.Contains(arg, "?") || strings.Contains(arg, "[") {
+			matches, err := filepath.Glob(arg)
+			if err != nil {
+				return args
+			}
+			if len(matches) == 0 {
+				// no matches, keep the pattern as-is (bash behavior)
+				expanded = append(expanded, arg)
+			} else {
+				expanded = append(expanded, matches...)
+			}
+		} else {
+			// no glob characters, keep the argument unchanged
+			expanded = append(expanded, arg)
+		}
+	}
+	return expanded
 }
