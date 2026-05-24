@@ -214,17 +214,18 @@ type DirCompleter struct{}
 
 func (d *DirCompleter) Complete(args []string, current string, ctx CompletionContext) []string {
 	currCandidates := completeFiles(current)
-
+	home, _ := os.UserHomeDir()
 	var actualCandidates []string
-
-	// filter the current directory entries for folders
 	for _, candidate := range currCandidates {
-		info, err := os.Stat(candidate)
+		realPath := candidate
+		if home != "" && strings.HasPrefix(candidate, "~/") {
+			realPath = home + candidate[1:]
+		}
+		info, err := os.Stat(realPath)
 		if err == nil && info.IsDir() {
 			actualCandidates = append(actualCandidates, candidate)
 		}
 	}
-
 	return actualCandidates
 }
 
