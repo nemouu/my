@@ -102,6 +102,7 @@ func (sc *ShellCompleter) Do(line []rune, pos int) ([][]rune, int) {
 
 	// Default: file completion
 	candidates := completeFiles(current)
+	fmt.Println("current:", current, "candidates:", candidates)
 	return toReadlineCandidates(candidates, len(current))
 }
 
