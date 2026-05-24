@@ -204,6 +204,7 @@ func toReadlineCandidates(candidates []string, length int) ([][]rune, int) {
 		// readline appends these to the remaining suffix, so strip the prefix
 		result[i] = []rune(c[length:])
 	}
+	fmt.Println("length:", length, "candidates:", candidates)
 	return result, length
 }
 
