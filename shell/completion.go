@@ -1,7 +1,6 @@
 package shell
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -102,7 +101,6 @@ func (sc *ShellCompleter) Do(line []rune, pos int) ([][]rune, int) {
 
 	// Default: file completion
 	candidates := completeFiles(current)
-	fmt.Println("current:", current, "candidates:", candidates)
 	return toReadlineCandidates(candidates, len(current))
 }
 
@@ -184,7 +182,6 @@ func completeFiles(prefix string) []string {
 		}
 		candidates = append(candidates, candidate)
 	}
-	fmt.Println(candidates)
 	return candidates
 }
 
@@ -205,7 +202,6 @@ func toReadlineCandidates(candidates []string, length int) ([][]rune, int) {
 		// readline appends these to the remaining suffix, so strip the prefix
 		result[i] = []rune(c[length:])
 	}
-	fmt.Println("length:", length, "candidates:", candidates)
 	return result, length
 }
 
