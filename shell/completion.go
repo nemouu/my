@@ -119,6 +119,8 @@ func (sc *ShellCompleter) completeCommands(prefix string) []string {
 	return candidates
 }
 
+// this helper function now scans paths and stores where it was
+// for later use
 func (sc *ShellCompleter) scanPath() []string {
 	seen := make(map[string]bool)
 	for _, b := range sc.builtins {
@@ -206,8 +208,19 @@ func toReadlineCandidates(candidates []string, length int) ([][]rune, int) {
 type DirCompleter struct{}
 
 func (d *DirCompleter) Complete(args []string, current string, ctx CompletionContext) []string {
-	// TODO: filter completeFiles to directories only
-	return nil
+	currCandidates := completeFiles(current)
+
+	var actualCandidates []string
+
+	// filter the current directory entries for folders
+	for _, candidate := range currCandidates {
+		info, err := os.Stat(candidate)
+		if err == nil && info.IsDir() {
+			actualCandidates = append(actualCandidates, candidate)
+		}
+	}
+
+	return actualCandidates
 }
 
 // GitCompleter completes git subcommands. Register for "git".
