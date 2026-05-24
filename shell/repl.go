@@ -33,6 +33,7 @@ func Run(emitPrompt bool) error {
 		Prompt:       p,
 		HistoryFile:  os.Getenv("HOME") + "/.config/mu/history",
 		HistoryLimit: 500,
+		AutoComplete: NewShellCompleter(NewCompletionRegistry()),
 	})
 	if err != nil {
 		return err
