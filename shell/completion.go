@@ -6,18 +6,26 @@ import (
 	"strings"
 )
 
+// =============================================================================
+// Interface & context
+// =============================================================================
+
 // CompletionContext holds shell state that completers may need.
+// Extended as new job-aware or state-aware completers are added.
 type CompletionContext struct {
 	// TODO: add Jobs []*Job when job-aware completers are implemented
 }
 
-// Completer is the interface for per-command tab completion.
-// args is everything typed so far, current is the word being completed.
+// Completer is the interface every per-command completer must satisfy.
+// args is everything typed after the command, current is the word being completed.
 type Completer interface {
 	Complete(args []string, current string, ctx CompletionContext) []string
 }
 
-// CompletionRegistry maps command names to their Completer.
+// =============================================================================
+// Registry — maps command names to their Completer
+// =============================================================================
+
 type CompletionRegistry struct {
 	completers map[string]Completer
 }
@@ -28,7 +36,7 @@ func NewCompletionRegistry() *CompletionRegistry {
 	r.Register("cd", &DirCompleter{})
 	r.Register("git", &GitCompleter{})
 
-	// TODO: register per-command completers here as they are built, e.g.:
+	// TODO: register per-command completers here as they are built:
 	// r.Register("fg", &JobCompleter{})
 	// r.Register("bg", &JobCompleter{})
 
@@ -44,12 +52,14 @@ func (r *CompletionRegistry) Get(command string) (Completer, bool) {
 	return c, ok
 }
 
-// ShellCompleter implements readline.AutoCompleter.
-// It is the single entry point readline calls on every Tab press.
+// =============================================================================
+// ShellCompleter — the single entry point readline calls on every Tab press
+// =============================================================================
+
 type ShellCompleter struct {
 	registry     *CompletionRegistry
 	builtins     []string
-	pathBinaries []string
+	pathBinaries []string // cached on startup, see scanPath
 }
 
 func NewShellCompleter(registry *CompletionRegistry) *ShellCompleter {
@@ -62,20 +72,16 @@ func NewShellCompleter(registry *CompletionRegistry) *ShellCompleter {
 }
 
 // Do is called by readline on every Tab press.
-// line is the full input buffer, pos is the cursor position.
+// It routes to command completion, a registered completer, or file completion.
 func (sc *ShellCompleter) Do(line []rune, pos int) ([][]rune, int) {
-
 	if pos == 0 || strings.TrimSpace(string(line[:pos])) == "" {
 		return nil, 0
 	}
 
-	// Only consider the input up to the cursor
 	input := string(line[:pos])
 	words := strings.Fields(input)
 
-	// Are we completing the first word (the command)?
 	completingCommand := len(words) == 0 || (len(words) == 1 && !strings.HasSuffix(input, " "))
-
 	if completingCommand {
 		current := ""
 		if len(words) == 1 {
@@ -84,7 +90,6 @@ func (sc *ShellCompleter) Do(line []rune, pos int) ([][]rune, int) {
 		return toReadlineCandidates(sc.completeCommands(current), len(current))
 	}
 
-	// We are completing an argument
 	command := words[0]
 	current := ""
 	if !strings.HasSuffix(input, " ") {
@@ -93,15 +98,12 @@ func (sc *ShellCompleter) Do(line []rune, pos int) ([][]rune, int) {
 
 	ctx := CompletionContext{}
 
-	// Look up a registered completer for this command
 	if completer, ok := sc.registry.Get(command); ok {
 		candidates := completer.Complete(words[1:], current, ctx)
 		return toReadlineCandidates(candidates, len(current))
 	}
 
-	// Default: file completion
-	candidates := completeFiles(current)
-	return toReadlineCandidates(candidates, len(current))
+	return toReadlineCandidates(completeFiles(current), len(current))
 }
 
 // completeCommands returns builtins and $PATH binaries matching prefix.
@@ -120,7 +122,7 @@ func (sc *ShellCompleter) completeCommands(prefix string) []string {
 	return candidates
 }
 
-// scanPath scans all directories in $PATH and returns executable binaries.
+// scanPath scans all directories in $PATH and returns their executable binaries.
 // Called once on startup to avoid rescanning on every Tab press.
 func (sc *ShellCompleter) scanPath() []string {
 	seen := make(map[string]bool)
@@ -147,7 +149,12 @@ func (sc *ShellCompleter) scanPath() []string {
 	return binaries
 }
 
-// completeFiles returns file/directory names matching prefix.
+// =============================================================================
+// Helpers
+// =============================================================================
+
+// completeFiles returns file and directory names matching prefix.
+// Handles tilde expansion and converts results back to ~ form.
 func completeFiles(prefix string) []string {
 	home, _ := os.UserHomeDir()
 	if strings.HasPrefix(prefix, "~/") {
@@ -185,7 +192,7 @@ func completeFiles(prefix string) []string {
 	return candidates
 }
 
-// isExecutable reports whether the file at path is executable.
+// isExecutable reports whether the file at path has execute permission bits set.
 func isExecutable(path string) bool {
 	info, err := os.Stat(path)
 	if err != nil {
@@ -194,43 +201,44 @@ func isExecutable(path string) bool {
 	return info.Mode()&0111 != 0
 }
 
-// toReadlineCandidates converts string candidates to the format readline expects.
-// length is how many characters of the current word readline should replace.
+// toReadlineCandidates converts candidates to the format readline expects.
+// readline already has the typed prefix, so we strip it and return only the suffix.
 func toReadlineCandidates(candidates []string, length int) ([][]rune, int) {
 	result := make([][]rune, len(candidates))
 	for i, c := range candidates {
-		// readline appends these to the remaining suffix, so strip the prefix
 		result[i] = []rune(c[length:])
 	}
 	return result, length
 }
 
-// DirCompleter completes only directories. Register for "cd".
+// =============================================================================
+// Concrete completers — add new ones here and register them in NewCompletionRegistry
+// =============================================================================
+
+// DirCompleter completes only directories. Registered for "cd".
 type DirCompleter struct{}
 
 func (d *DirCompleter) Complete(args []string, current string, ctx CompletionContext) []string {
-	currCandidates := completeFiles(current)
 	home, _ := os.UserHomeDir()
-	var actualCandidates []string
-	for _, candidate := range currCandidates {
+	var candidates []string
+	for _, candidate := range completeFiles(current) {
 		realPath := candidate
 		if home != "" && strings.HasPrefix(candidate, "~/") {
 			realPath = home + candidate[1:]
 		}
 		info, err := os.Stat(realPath)
 		if err == nil && info.IsDir() {
-			actualCandidates = append(actualCandidates, candidate)
+			candidates = append(candidates, candidate)
 		}
 	}
-	return actualCandidates
+	return candidates
 }
 
-// GitCompleter completes git subcommands. Register for "git".
+// GitCompleter completes git subcommands. Registered for "git".
 type GitCompleter struct{}
 
 func (g *GitCompleter) Complete(args []string, current string, ctx CompletionContext) []string {
-	// TODO: return subcommands for word 0 works but smarter completion for word 1+
-	// has to be done e.g. `git checkout <Tab>` → branch names via `git branch`
+	// TODO: word 1+ completion, e.g. `git checkout <Tab>` show branch names via `git branch`
 	subcommands := []string{
 		"add", "commit", "push", "pull", "checkout", "branch",
 		"status", "log", "diff", "merge", "rebase", "stash",
