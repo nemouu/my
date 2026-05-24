@@ -120,8 +120,8 @@ func (sc *ShellCompleter) completeCommands(prefix string) []string {
 	return candidates
 }
 
-// this helper function now scans paths and stores where it was
-// for later use
+// scanPath scans all directories in $PATH and returns executable binaries.
+// Called once on startup to avoid rescanning on every Tab press.
 func (sc *ShellCompleter) scanPath() []string {
 	seen := make(map[string]bool)
 	for _, b := range sc.builtins {
