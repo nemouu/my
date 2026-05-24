@@ -35,6 +35,7 @@ func Run(emitPrompt bool) error {
 		HistoryLimit: 500,
 		AutoComplete: NewShellCompleter(NewCompletionRegistry()),
 	})
+
 	if err != nil {
 		return err
 	}

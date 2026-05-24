@@ -25,9 +25,10 @@ type CompletionRegistry struct {
 func NewCompletionRegistry() *CompletionRegistry {
 	r := &CompletionRegistry{completers: make(map[string]Completer)}
 
+	r.Register("cd", &DirCompleter{})
+	r.Register("git", &GitCompleter{})
+
 	// TODO: register per-command completers here as they are built, e.g.:
-	// r.Register("cd", &DirCompleter{})
-	// r.Register("git", &GitCompleter{})
 	// r.Register("fg", &JobCompleter{})
 	// r.Register("bg", &JobCompleter{})
 
@@ -227,8 +228,8 @@ func (d *DirCompleter) Complete(args []string, current string, ctx CompletionCon
 type GitCompleter struct{}
 
 func (g *GitCompleter) Complete(args []string, current string, ctx CompletionContext) []string {
-	// TODO: return subcommands for word 0, smarter completion for word 1+
-	// e.g. `git checkout <Tab>` → branch names via `git branch`
+	// TODO: return subcommands for word 0 works but smarter completion for word 1+
+	// has to be done e.g. `git checkout <Tab>` → branch names via `git branch`
 	subcommands := []string{
 		"add", "commit", "push", "pull", "checkout", "branch",
 		"status", "log", "diff", "merge", "rebase", "stash",
