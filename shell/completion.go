@@ -1,6 +1,7 @@
 package shell
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -182,6 +183,7 @@ func completeFiles(prefix string) []string {
 		}
 		candidates = append(candidates, candidate)
 	}
+	fmt.Println(candidates)
 	return candidates
 }
 
